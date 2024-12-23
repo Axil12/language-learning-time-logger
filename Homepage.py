@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import streamlit as st
@@ -143,8 +143,10 @@ df_container_cols = df_container.columns([0.7, 0.3])
 df_container_cols[0].dataframe(df.sort_values(by="date", ascending=False), width=5000)
 
 # Pie chart that displays the distribution of activities
-df_7days = df[df["date"] > datetime.now() - pd.to_timedelta("7day")].copy()
-df_30days = df[df["date"] > datetime.now() - pd.to_timedelta("30day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=7)
+df_7days = df[df["date"] > min_time].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=30)
+df_30days = df[df["date"] > min_time].copy()
 df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
@@ -182,7 +184,8 @@ stats_container = st.container()
 stats_container.markdown("### Activities")
 stacked_plots = stats_container.columns(3)
 stacked_plots[0].markdown("#### This week")
-df_tmp = df[df["date"] > datetime.now() - pd.to_timedelta("7day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=7)
+df_tmp = df[df["date"] > min_time].copy()
 df_tmp["day"] = df_tmp["date"].dt.date
 df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
 df_tmp["time_hours"] = df_tmp["time"] / 60
@@ -202,7 +205,8 @@ fig.update_layout(
 )
 stacked_plots[0].plotly_chart(fig, key="Activity time hours 7day")
 stacked_plots[1].markdown("#### This month")
-df_tmp = df[df["date"] > datetime.now() - pd.to_timedelta("30day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=30)
+df_tmp = df[df["date"] > min_time].copy()
 df_tmp["day"] = df_tmp["date"].dt.date
 df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
 df_tmp["time_hours"] = df_tmp["time"] / 60
@@ -222,7 +226,8 @@ fig.update_layout(
 )
 stacked_plots[1].plotly_chart(fig, key="Activity time hours 30day")
 stacked_plots[2].markdown("#### This year")
-df_tmp = df[df["date"] > datetime.now() - pd.to_timedelta("365day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=365)
+df_tmp = df[df["date"] > min_time].copy()
 df_tmp["day"] = df_tmp["date"].dt.date
 df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
 df_tmp["time_hours"] = df_tmp["time"] / 60
@@ -246,7 +251,8 @@ stats_container.markdown("### Cumulative time")
 df_tmp["Cumulative time"] = df_tmp["time"].cumsum()
 cumul_stacked_plots = stats_container.columns(3)
 cumul_stacked_plots[0].markdown("#### This week")
-df_tmp = df[df["date"] > datetime.now() - pd.to_timedelta("7day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=7)
+df_tmp = df[df["date"] > min_time].copy()
 df_tmp = build_df_for_cumul_stack_plot(df_tmp)
 df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
 df_tmp = df_tmp.sort_values(by="activity")
@@ -265,7 +271,8 @@ fig.update_layout(
 )
 cumul_stacked_plots[0].plotly_chart(fig, key="Cumulative time hours 7day")
 cumul_stacked_plots[1].markdown("#### This month")
-df_tmp = df[df["date"] > datetime.now() - pd.to_timedelta("30day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=30)
+df_tmp = df[df["date"] > min_time].copy()
 df_tmp = build_df_for_cumul_stack_plot(df_tmp)
 df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
 df_tmp = df_tmp.sort_values(by="activity")
@@ -284,7 +291,8 @@ fig.update_layout(
 )
 cumul_stacked_plots[1].plotly_chart(fig, key="Cumulative time hours 30day")
 cumul_stacked_plots[2].markdown("#### This year")
-df_tmp = df[df["date"] > datetime.now() - pd.to_timedelta("365day")].copy()
+min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=365)
+df_tmp = df[df["date"] > min_time].copy()
 df_tmp = build_df_for_cumul_stack_plot(df_tmp)
 df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
 df_tmp = df_tmp.sort_values(by="activity")
