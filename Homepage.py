@@ -23,7 +23,7 @@ ACTIVITIES = [
     "youtube",
     "twitch",
     "reading",
-    "texbook study",
+    "textbook study",
 ]
 TAGS = [
     None,
