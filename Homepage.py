@@ -36,6 +36,9 @@ TAGS = [
 colordict = {f: px.colors.qualitative.Prism[i] for i, f in enumerate(ACTIVITIES)}
 # colordict = {f:  px.colors.sample_colorscale('Twilight', len(ACTIVITIES))[i] for i, f in enumerate(ACTIVITIES)}
 
+# We get today's date at midnight. This will be usefull in multiple places in the page to compute time slices
+today_dt = datetime.combine(datetime.now().date(), datetime.min.time())
+
 st.set_page_config(page_title="JP Language Logger", page_icon="🇯🇵", layout="wide")
 theme = st_theme()
 
@@ -143,10 +146,8 @@ df_container_cols = df_container.columns([0.7, 0.3])
 df_container_cols[0].dataframe(df.sort_values(by="date", ascending=False), width=5000)
 
 # Pie chart that displays the distribution of activities
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=7)
-df_7days = df[df["date"] > min_time].copy()
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=30)
-df_30days = df[df["date"] > min_time].copy()
+df_7days = df[df["date"] > today_dt - timedelta(days=7)].copy()
+df_30days = df[df["date"] > today_dt - timedelta(days=30)].copy()
 df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
@@ -167,7 +168,12 @@ fig = px.sunburst(
 fig.update_layout(margin=dict(t=0, b=0, r=10, l=10), height=260)
 df_container_cols[1].plotly_chart(fig, key="Activities pie chart")
 
+###############################################################################
+#
 # Calendar heatmap
+#
+###############################################################################
+
 df_container.plotly_chart(
     generate_calplot(df, dark_mode=theme.get("base") == "dark" if theme else None)
 )
@@ -182,134 +188,61 @@ st.markdown("## Stats")
 stats_container = st.container()
 
 stats_container.markdown("### Activities")
-stacked_plots = stats_container.columns(3)
-stacked_plots[0].markdown("#### This week")
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=7)
-df_tmp = df[df["date"] > min_time].copy()
-df_tmp["day"] = df_tmp["date"].dt.date
-df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
-df_tmp["time_hours"] = df_tmp["time"] / 60
-df_tmp = df_tmp.sort_values(by="activity")
-fig = px.area(
-    df_tmp,
-    x="day",
-    y="time_hours",
-    color="activity",
-    line_shape="spline",
-    color_discrete_map=colordict,
-)
-fig.update_layout(
-    legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-    margin=dict(t=20, b=0, r=0, l=0),
-    height=300,
-)
-stacked_plots[0].plotly_chart(fig, key="Activity time hours 7day")
-stacked_plots[1].markdown("#### This month")
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=30)
-df_tmp = df[df["date"] > min_time].copy()
-df_tmp["day"] = df_tmp["date"].dt.date
-df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
-df_tmp["time_hours"] = df_tmp["time"] / 60
-df_tmp = df_tmp.sort_values(by="activity")
-fig = px.area(
-    df_tmp,
-    x="day",
-    y="time_hours",
-    color="activity",
-    line_shape="spline",
-    color_discrete_map=colordict,
-)
-fig.update_layout(
-    legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-    margin=dict(t=20, b=0, r=0, l=0),
-    height=300,
-)
-stacked_plots[1].plotly_chart(fig, key="Activity time hours 30day")
-stacked_plots[2].markdown("#### This year")
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=365)
-df_tmp = df[df["date"] > min_time].copy()
-df_tmp["day"] = df_tmp["date"].dt.date
-df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
-df_tmp["time_hours"] = df_tmp["time"] / 60
-df_tmp = df_tmp.sort_values(by="activity")
-fig = px.area(
-    df_tmp,
-    x="day",
-    y="time_hours",
-    color="activity",
-    line_shape="spline",
-    color_discrete_map=colordict,
-)
-fig.update_layout(
-    legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-    margin=dict(t=20, b=0, r=0, l=0),
-    height=300,
-)
-stacked_plots[2].plotly_chart(fig, key="Activity time hours 365day")
+df_tmp = df.copy()
+stacked_bar_plots = stats_container.columns(3)
+for i, (tag, n_days) in enumerate(
+    {"This week": 7, "This month": 30, "This year": 365}.items()
+):
+    df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
+    df_tmp["day"] = df_tmp["date"].dt.date
+    df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
+    df_tmp["time_hours"] = df_tmp["time"] / 60
+    df_tmp = df_tmp.sort_values(by="activity")
+    fig = px.bar(
+        df_tmp,
+        x="day",
+        y="time_hours",
+        color="activity",
+        color_discrete_map=colordict,
+        opacity=0.6,
+    )
+    fig.update_layout(
+        legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
+        margin=dict(t=20, b=0, r=0, l=0),
+        height=300,
+        bargap=0.01,
+        barcornerradius=4 - i,
+    )
+
+    stacked_bar_plots[i].markdown(f"#### {tag}")
+    stacked_bar_plots[i].plotly_chart(fig, key=f"Activity time hours {n_days}day")
 
 stats_container.markdown("### Cumulative time")
+df_tmp = df.copy()
 df_tmp["Cumulative time"] = df_tmp["time"].cumsum()
 cumul_stacked_plots = stats_container.columns(3)
-cumul_stacked_plots[0].markdown("#### This week")
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=7)
-df_tmp = df[df["date"] > min_time].copy()
-df_tmp = build_df_for_cumul_stack_plot(df_tmp)
-df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
-df_tmp = df_tmp.sort_values(by="activity")
-fig = px.area(
-    df_tmp,
-    x="day",
-    y="Cumulative time hours",
-    color="activity",
-    line_shape="spline",
-    color_discrete_map=colordict,
-)
-fig.update_layout(
-    legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-    margin=dict(t=20, b=0, r=0, l=0),
-    height=300,
-)
-cumul_stacked_plots[0].plotly_chart(fig, key="Cumulative time hours 7day")
-cumul_stacked_plots[1].markdown("#### This month")
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=30)
-df_tmp = df[df["date"] > min_time].copy()
-df_tmp = build_df_for_cumul_stack_plot(df_tmp)
-df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
-df_tmp = df_tmp.sort_values(by="activity")
-fig = px.area(
-    df_tmp,
-    x="day",
-    y="Cumulative time hours",
-    color="activity",
-    line_shape="spline",
-    color_discrete_map=colordict,
-)
-fig.update_layout(
-    legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-    margin=dict(t=20, b=0, r=0, l=0),
-    height=300,
-)
-cumul_stacked_plots[1].plotly_chart(fig, key="Cumulative time hours 30day")
-cumul_stacked_plots[2].markdown("#### This year")
-min_time = datetime.combine(datetime.now().date(), datetime.min.time()) - timedelta(days=365)
-df_tmp = df[df["date"] > min_time].copy()
-df_tmp = build_df_for_cumul_stack_plot(df_tmp)
-df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
-df_tmp = df_tmp.sort_values(by="activity")
-fig = px.area(
-    df_tmp,
-    x="day",
-    y="Cumulative time hours",
-    color="activity",
-    line_shape="spline",
-    color_discrete_map=colordict,
-)
-fig.update_layout(
-    legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-    margin=dict(t=20, b=0, r=0, l=0),
-    height=300,
-)
-cumul_stacked_plots[2].plotly_chart(fig, key="Cumulative time hours 365day")
+for i, (tag, n_days) in enumerate(
+    {"This week": 7, "This month": 30, "This year": 365}.items()
+):
+    df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
+    df_tmp = build_df_for_cumul_stack_plot(df_tmp)
+    df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
+    df_tmp = df_tmp.sort_values(by="activity")
+    fig = px.area(
+        df_tmp,
+        x="day",
+        y="Cumulative time hours",
+        color="activity",
+        line_shape="spline",
+        color_discrete_map=colordict,
+    )
+    fig.update_layout(
+        legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
+        margin=dict(t=20, b=0, r=0, l=0),
+        height=300,
+    )
+    cumul_stacked_plots[i].markdown(f"#### {tag}")
+    cumul_stacked_plots[i].plotly_chart(fig, key=f"Cumulative time hours {n_days}day")
 
 
 ###############################################################################
