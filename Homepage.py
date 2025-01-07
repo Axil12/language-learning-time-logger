@@ -152,9 +152,9 @@ df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
     Average per day : \n
-    All time : **{sum(df["time"])/60/((max(df["date"]) - min(df["date"])).days+1):.2f} h/d** | 
-    This month : **{sum(df_30days["time"])/60/((max(df["date"]) - min(df_30days["date"])).days+1):.2f} h/d** | 
-    This week : **{sum(df_7days["time"])/60/((max(df_7days["date"]) - min(df_7days["date"])).days+1):.2f} h/d**\n
+    All time : **{sum(df["time"])/60/((today_dt - min(df["date"])).days+1):.2f} h/d** | 
+    This month : **{sum(df_30days["time"])/60/30:.2f} h/d** | 
+    This week : **{sum(df_7days["time"])/60/7:.2f} h/d**\n
     """
 )
 df_tmp = df.copy()
@@ -187,6 +187,7 @@ df_container.plotly_chart(
 st.markdown("## Stats")
 stats_container = st.container()
 
+### Time spent each day
 stats_container.markdown("### Activities")
 df_tmp = df.copy()
 stacked_bar_plots = stats_container.columns(3)
@@ -217,6 +218,7 @@ for i, (tag, n_days) in enumerate(
     stacked_bar_plots[i].markdown(f"#### {tag}")
     stacked_bar_plots[i].plotly_chart(fig, key=f"Activity time hours {n_days}day")
 
+### Cumulative time spent
 stats_container.markdown("### Cumulative time")
 df_tmp = df.copy()
 df_tmp["Cumulative time"] = df_tmp["time"].cumsum()
@@ -225,7 +227,7 @@ for i, (tag, n_days) in enumerate(
     {"This week": 7, "This month": 30, "This year": 365}.items()
 ):
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
-    df_tmp = build_df_for_cumul_stack_plot(df_tmp)
+    df_tmp = build_df_for_cumul_stack_plot(df_tmp, n_days)
     df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
     df_tmp = df_tmp.sort_values(by="activity")
     fig = px.area(
