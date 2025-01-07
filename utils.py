@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import july
@@ -5,11 +7,18 @@ from plotly_calplot import calplot
 import plotly.express as px
 
 
-def build_df_for_cumul_stack_plot(_df: pd.DataFrame) -> pd.DataFrame:
+def build_df_for_cumul_stack_plot(_df: pd.DataFrame, n_days: int) -> pd.DataFrame:
     df = _df.copy()
     df["day"] = df["date"].dt.date
     df = df.groupby(["day", "activity"])["time"].sum().reset_index()
-    all_days = pd.date_range(start=df["day"].min(), end=df["day"].max(), freq="D").date
+    # all_days = pd.date_range(start=df["day"].min(), end=df["day"].max(), freq="D").date
+    all_days = df["day"].unique()
+    if len(all_days) > 0:
+        today_dt = datetime.combine(datetime.now().date(), datetime.min.time())
+        start = today_dt - timedelta(days=n_days)
+        start = max(start, pd.to_datetime(df["day"]).min())
+        end = today_dt
+        all_days = pd.date_range(start=start, end=end, freq="D").date
     all_activities = df["activity"].unique()
     index = pd.MultiIndex.from_product(
         [all_days, all_activities], names=["day", "activity"]
