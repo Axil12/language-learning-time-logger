@@ -255,7 +255,6 @@ stats_container.markdown("### Time repartition")
 stats_container.markdown("This describes the times at which activities tend to finish.")
 # First, we get rid of the data points that have a recorded hour at midnight. As those are considered to have an unknown time.
 df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
-df_tmp["time"] = df_tmp["date"].dt.time
 df_tmp["hour"] = df_tmp["date"].dt.hour
 df_grouped = df_tmp.groupby(["hour", "activity"]).size().reset_index(name="count")
 # Pivot the data to have activity types as columns
@@ -286,3 +285,39 @@ fig.update_layout(
     legend=dict(x=0, y=1, title="Activity"),
 )
 stats_container.plotly_chart(fig, key="histogram_activity_times")
+
+
+###############################################################################
+#
+# Scatter plot : repartition of the times at which I finish each activity
+#
+###############################################################################
+
+df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
+# df_tmp = df.copy()
+df_tmp["minute_of_day"] = 60 * df_tmp["date"].dt.hour + df_tmp["date"].dt.minute
+all_minutes = pd.DataFrame(
+    {"minute_of_day": range(24 * 60)}
+)  # Add missing minute of the day
+fig = px.scatter(
+    df_tmp,
+    x="minute_of_day",
+    y="time",
+    color="activity",
+    labels={"time": "Time", "minute_of_day": "Hour of the Day"},
+    color_discrete_map=colordict,
+    opacity=0.6,
+)
+fig.update_traces(marker_size=10)
+fig.update_layout(
+    coloraxis_showscale=False,
+    xaxis_range=[0, 24*60],
+    xaxis=dict(
+        tickmode="array",
+        tickvals=[i for i in range(0, 24 * 60, 30)],
+        ticktext=[f"{i//60}:{i%60:02d}" for i in range(0, 24 * 60, 30)],
+        tickangle=40,
+    ),
+    legend=dict(x=0, y=1, title="Activity"),
+)
+stats_container.plotly_chart(fig, key="tmp")
