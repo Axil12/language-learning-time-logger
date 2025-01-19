@@ -1,7 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import numpy as np
 import streamlit as st
 from streamlit_theme import st_theme
 import pandas as pd
@@ -252,23 +251,27 @@ for i, (tag, n_days) in enumerate(
 # Histogram : repartition of the times at which I finish each activity
 #
 ###############################################################################
-
 stats_container.markdown("### Time repartition")
 stats_container.markdown("This describes the times at which activities tend to finish.")
 # First, we get rid of the data points that have a recorded hour at midnight. As those are considered to have an unknown time.
 df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
 df_tmp["time"] = df_tmp["date"].dt.time
 df_tmp["hour"] = df_tmp["date"].dt.hour
-counts, bins = np.histogram(df_tmp["hour"], bins=range(0, 25, 1))
-bins = (
-    0.5 * (bins[:-1] + bins[1:]) - 0.5
-)  # I think this handles the position of the xticks ?
+df_grouped = df_tmp.groupby(["hour", "activity"]).size().reset_index(name="count")
+# Pivot the data to have activity types as columns
+pivot_table = df_grouped.pivot(index="hour", columns="activity", values="count").fillna(
+    0
+)
+full_hours = pd.DataFrame({"hour": range(24)})  # Add missing hours (0 to 23)
+pivot_table = full_hours.merge(pivot_table, on="hour", how="left").fillna(0)
 fig = px.bar(
-    x=bins,
-    y=counts,
-    labels={"x": "hour", "y": "count"},
-    color=bins,
-    color_continuous_scale=px.colors.sequential.RdPu,
+    pivot_table,
+    x="hour",
+    y=pivot_table.columns[1:],
+    labels={"value": "Count", "hour": "Hour of the Day"},
+    barmode="stack",
+    color_discrete_map=colordict,
+    opacity=0.6,
 )
 fig.update_layout(
     bargap=0.02,
@@ -280,5 +283,6 @@ fig.update_layout(
         ticktext=[f"{i}:00" for i in range(24)],
         tickangle=40,
     ),
+    legend=dict(x=0, y=1, title="Activity"),
 )
 stats_container.plotly_chart(fig, key="histogram_activity_times")
