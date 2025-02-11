@@ -4,13 +4,10 @@ from datetime import datetime, timedelta
 import streamlit as st
 from streamlit_theme import st_theme
 import pandas as pd
-import july
-import matplotlib.pyplot as plt
 import plotly.express as px
 
 from utils import (
     build_df_for_cumul_stack_plot,
-    generate_july_plot,
     generate_calplot,
 )
 
@@ -145,15 +142,15 @@ df_container_cols = df_container.columns([0.7, 0.3])
 df_container_cols[0].dataframe(df.sort_values(by="date", ascending=False), width=5000)
 
 # Pie chart that displays the distribution of activities
-df_7days = df[df["date"] > today_dt - timedelta(days=7)].copy()
+df_7days = df[df["date"] > today_dt - timedelta(days=6)].copy()
 df_30days = df[df["date"] > today_dt - timedelta(days=30)].copy()
 df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
     Average per day : \n
-    All time : **{sum(df["time"])/60/((today_dt - min(df["date"])).days+1):.2f} h/d** | 
+    This week : **{sum(df_7days["time"])/60/7:.2f} h/d** | 
     This month : **{sum(df_30days["time"])/60/30:.2f} h/d** | 
-    This week : **{sum(df_7days["time"])/60/7:.2f} h/d**\n
+    All time : **{sum(df["time"])/60/((today_dt - min(df["date"])).days+1):.2f} h/d** 
     """
 )
 df_tmp = df.copy()
@@ -191,10 +188,18 @@ stats_container.markdown("### Activities")
 df_tmp = df.copy()
 stacked_bar_plots = stats_container.columns(3)
 for i, (tag, n_days) in enumerate(
-    {"This week": 7, "This month": 30, "This year": 365}.items()
+    {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
     df_tmp["day"] = df_tmp["date"].dt.date
+    day_first_entry = min(df_tmp["day"])
+    all_days_in_range = pd.DataFrame(
+        {"day": [(today_dt - timedelta(days=i)).date() for i in range(n_days)]}
+    )
+    df_tmp = all_days_in_range.merge(df_tmp, on="day", how="left")
+    df_tmp["activity"] = df_tmp["activity"].fillna("")
+    df_tmp["time"] = df_tmp["time"].fillna(0)
+    df_tmp = df_tmp[df_tmp["day"] >= day_first_entry]
     df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
     df_tmp["time_hours"] = df_tmp["time"] / 60
     df_tmp = df_tmp.sort_values(by="activity")
@@ -223,7 +228,7 @@ df_tmp = df.copy()
 df_tmp["Cumulative time"] = df_tmp["time"].cumsum()
 cumul_stacked_plots = stats_container.columns(3)
 for i, (tag, n_days) in enumerate(
-    {"This week": 7, "This month": 30, "This year": 365}.items()
+    {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
     df_tmp = build_df_for_cumul_stack_plot(df_tmp, n_days)
@@ -252,7 +257,8 @@ for i, (tag, n_days) in enumerate(
 #
 ###############################################################################
 stats_container.markdown("### Time repartition")
-stats_container.markdown("This describes the times at which activities tend to finish.")
+hist_cols = stats_container.columns(2)
+hist_cols[0].markdown("#### Activity counts")
 # First, we get rid of the data points that have a recorded hour at midnight. As those are considered to have an unknown time.
 df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
 df_tmp["hour"] = df_tmp["date"].dt.hour
@@ -273,7 +279,7 @@ fig = px.bar(
     opacity=0.6,
 )
 fig.update_layout(
-    bargap=0.02,
+    bargap=0.05,
     barcornerradius=3,
     coloraxis_showscale=False,
     xaxis=dict(
@@ -284,7 +290,41 @@ fig.update_layout(
     ),
     legend=dict(x=0, y=1, title="Activity"),
 )
-stats_container.plotly_chart(fig, key="histogram_activity_times")
+hist_cols[0].plotly_chart(fig, key="histogram_activity_times")
+
+hist_cols[1].markdown("#### Cumulated time")
+# First, we get rid of the data points that have a recorded hour at midnight. As those are considered to have an unknown time.
+df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
+df_tmp["hour"] = df_tmp["date"].dt.hour
+df_tmp["time"] = df_tmp["time"] / 60
+df_grouped = df_tmp.groupby(["hour", "activity"]).sum("time").reset_index()
+pivot_table = df_grouped.pivot(index="hour", columns="activity", values="time").fillna(
+    0
+)
+full_hours = pd.DataFrame({"hour": range(24)})  # Add missing hours (0 to 23)
+pivot_table = full_hours.merge(pivot_table, on="hour", how="left").fillna(0)
+fig = px.bar(
+    pivot_table,
+    x="hour",
+    y=pivot_table.columns[1:],
+    labels={"value": "Time (hours)", "hour": "Hour of the Day"},
+    barmode="stack",
+    color_discrete_map=colordict,
+    opacity=0.6,
+)
+fig.update_layout(
+    bargap=0.05,
+    barcornerradius=3,
+    coloraxis_showscale=False,
+    xaxis=dict(
+        tickmode="array",
+        tickvals=[i for i in range(24)],
+        ticktext=[f"{i}:00" for i in range(24)],
+        tickangle=40,
+    ),
+    legend=dict(x=0, y=1, title="Activity"),
+)
+hist_cols[1].plotly_chart(fig, key="histogram_activity_times_2")
 
 
 ###############################################################################
@@ -292,10 +332,12 @@ stats_container.plotly_chart(fig, key="histogram_activity_times")
 # Scatter plot : repartition of the times at which I finish each activity
 #
 ###############################################################################
-
+stats_container.markdown("### Recorded Activities")
 df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
 # df_tmp = df.copy()
+df_tmp["hour_of_day"] = df_tmp["date"].apply(lambda x: f"{x.hour}:{x.minute:02d}")
 df_tmp["minute_of_day"] = 60 * df_tmp["date"].dt.hour + df_tmp["date"].dt.minute
+df_tmp["comment"] = df_tmp["comment"].fillna(" ")
 all_minutes = pd.DataFrame(
     {"minute_of_day": range(24 * 60)}
 )  # Add missing minute of the day
@@ -304,14 +346,18 @@ fig = px.scatter(
     x="minute_of_day",
     y="time",
     color="activity",
-    labels={"time": "Time", "minute_of_day": "Hour of the Day"},
+    labels={"time": "Time", "hour_of_day": "Hour of the Day"},
     color_discrete_map=colordict,
     opacity=0.6,
+    hover_name="activity",
+    hover_data=dict(
+        activity=False, minute_of_day=False, time=True, hour_of_day=True, comment=True
+    ),
 )
 fig.update_traces(marker_size=10)
 fig.update_layout(
     coloraxis_showscale=False,
-    xaxis_range=[0, 24*60],
+    xaxis_range=[0, 24 * 60],
     xaxis=dict(
         tickmode="array",
         tickvals=[i for i in range(0, 24 * 60, 30)],
