@@ -144,13 +144,25 @@ df_container_cols[0].dataframe(df.sort_values(by="date", ascending=False), width
 # Pie chart that displays the distribution of activities
 df_7days = df[df["date"] > today_dt - timedelta(days=6)].copy()
 df_30days = df[df["date"] > today_dt - timedelta(days=30)].copy()
+avg_7_days = sum(df_7days["time"])/7
+avg_30_days = sum(df_30days["time"])/30
+avg_all_time = sum(df["time"])/((today_dt - min(df["date"])).days+1)
+# df_container_cols[1].markdown(
+#     f"""
+#     Hours logged : **{sum(df["time"])/60:.2f} h**\n
+#     Average per day : \n
+#     This week : **{avg_7_days/60:.2f} h/d** | 
+#     This month : **{avg_30_days/60:.2f} h/d** | 
+#     All time : **{avg_all_time/60:.2f} h/d** 
+#     """
+# )
 df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
-    Average per day : \n
-    This week : **{sum(df_7days["time"])/60/7:.2f} h/d** | 
-    This month : **{sum(df_30days["time"])/60/30:.2f} h/d** | 
-    All time : **{sum(df["time"])/60/((today_dt - min(df["date"])).days+1):.2f} h/d** 
+    ###### Average per day : \n
+    This week : **{int(avg_7_days//60)}h{round(avg_7_days%60):02d}** | 
+    This month : **{int(avg_30_days//60)}h{round(avg_30_days%60):02d}** | 
+    All time : **{int(avg_all_time//60)}h{round(avg_all_time%60):02d}** 
     """
 )
 df_tmp = df.copy()
