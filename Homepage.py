@@ -160,9 +160,9 @@ df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
     ###### Average per day : \n
-    This week : **{int(avg_7_days//60)}h{round(avg_7_days%60):02d}** | 
-    This month : **{int(avg_30_days//60)}h{round(avg_30_days%60):02d}** | 
-    All time : **{int(avg_all_time//60)}h{round(avg_all_time%60):02d}** 
+    This week : **{int(avg_7_days//60)}h{int(avg_7_days%60):02d}** | 
+    This month : **{int(avg_30_days//60)}h{int(avg_30_days%60):02d}** | 
+    All time : **{int(avg_all_time//60)}h{int(avg_all_time%60):02d}** 
     """
 )
 df_tmp = df.copy()
