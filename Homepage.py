@@ -144,16 +144,16 @@ df_container_cols[0].dataframe(df.sort_values(by="date", ascending=False), width
 # Pie chart that displays the distribution of activities
 df_7days = df[df["date"] > today_dt - timedelta(days=6)].copy()
 df_30days = df[df["date"] > today_dt - timedelta(days=30)].copy()
-avg_7_days = sum(df_7days["time"])/7
-avg_30_days = sum(df_30days["time"])/30
-avg_all_time = sum(df["time"])/((today_dt - min(df["date"])).days+1)
+avg_7_days = sum(df_7days["time"]) / 7
+avg_30_days = sum(df_30days["time"]) / 30
+avg_all_time = sum(df["time"]) / ((today_dt - min(df["date"])).days + 1)
 # df_container_cols[1].markdown(
 #     f"""
 #     Hours logged : **{sum(df["time"])/60:.2f} h**\n
 #     Average per day : \n
-#     This week : **{avg_7_days/60:.2f} h/d** | 
-#     This month : **{avg_30_days/60:.2f} h/d** | 
-#     All time : **{avg_all_time/60:.2f} h/d** 
+#     This week : **{avg_7_days/60:.2f} h/d** |
+#     This month : **{avg_30_days/60:.2f} h/d** |
+#     All time : **{avg_all_time/60:.2f} h/d**
 #     """
 # )
 df_container_cols[1].markdown(
@@ -214,6 +214,11 @@ for i, (tag, n_days) in enumerate(
     df_tmp = df_tmp[df_tmp["day"] >= day_first_entry]
     df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
     df_tmp["time_hours"] = df_tmp["time"] / 60
+    df_tmp["time_str"] = (
+        (df_tmp["time"] // 60).astype(int).astype(str)
+        + "h"
+        + (df_tmp["time"] % 60).astype(int).map("{:02d}".format)
+    )
     df_tmp = df_tmp.sort_values(by="activity")
     fig = px.bar(
         df_tmp,
@@ -222,6 +227,8 @@ for i, (tag, n_days) in enumerate(
         color="activity",
         color_discrete_map=colordict,
         opacity=0.6,
+        labels={"activity": "Activity", "day": "Day", "time_str": "Time"},
+        hover_data=dict(time_hours=False, time_str=True),
     )
     fig.update_layout(
         legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
@@ -245,6 +252,11 @@ for i, (tag, n_days) in enumerate(
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
     df_tmp = build_df_for_cumul_stack_plot(df_tmp, n_days)
     df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
+    df_tmp["time_str"] = (
+        (df_tmp["Cumulative time"] // 60).astype(int).astype(str)
+        + "h"
+        + (df_tmp["Cumulative time"] % 60).astype(int).map("{:02d}".format)
+    )
     df_tmp = df_tmp.sort_values(by="activity")
     fig = px.area(
         df_tmp,
@@ -253,6 +265,8 @@ for i, (tag, n_days) in enumerate(
         color="activity",
         line_shape="spline",
         color_discrete_map=colordict,
+        labels={"activity": "Activity", "day": "Day", "time_str": "Time"},
+        hover_data={"Cumulative time hours": False, "time_str": True},
     )
     fig.update_layout(
         legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
