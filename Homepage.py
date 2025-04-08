@@ -30,7 +30,6 @@ TAGS = [
 ]
 
 colordict = {f: px.colors.qualitative.Prism[i] for i, f in enumerate(ACTIVITIES)}
-# colordict = {f:  px.colors.sample_colorscale('Twilight', len(ACTIVITIES))[i] for i, f in enumerate(ACTIVITIES)}
 
 # We get today's date at midnight. This will be usefull in multiple places in the page to compute time slices
 today_dt = datetime.combine(datetime.now().date(), datetime.min.time())
@@ -69,6 +68,8 @@ with st.sidebar:
 if add_log_button:
     if activity is None:
         message_container.error("No activity was chosen !")
+    elif time_mins <= 0:
+        message_container.error("The time spent can't be 0.")
     else:
         if tag is None:
             tag = "none"
@@ -147,15 +148,7 @@ df_30days = df[df["date"] > today_dt - timedelta(days=30)].copy()
 avg_7_days = sum(df_7days["time"]) / 7
 avg_30_days = sum(df_30days["time"]) / 30
 avg_all_time = sum(df["time"]) / ((today_dt - min(df["date"])).days + 1)
-# df_container_cols[1].markdown(
-#     f"""
-#     Hours logged : **{sum(df["time"])/60:.2f} h**\n
-#     Average per day : \n
-#     This week : **{avg_7_days/60:.2f} h/d** |
-#     This month : **{avg_30_days/60:.2f} h/d** |
-#     All time : **{avg_all_time/60:.2f} h/d**
-#     """
-# )
+
 df_container_cols[1].markdown(
     f"""
     Hours logged : **{sum(df["time"])/60:.2f} h**\n
@@ -172,8 +165,19 @@ fig = px.sunburst(
     df_tmp,
     path=["total_time", "activity", "tag"],
     values="time",
+    labels={"time": "Time"},
+    hover_data=dict(time=":.2f", activity=True, tag=True),
 )
+# ['date', 'activity', 'time', 'tag', 'comment', 'total_time']
 fig.update_layout(margin=dict(t=0, b=0, r=10, l=10), height=260)
+# Directly modifying the HTML to clean it because I haven't found any other way to do it
+fig.data[0].hovertemplate = fig.data[0].hovertemplate.replace(r"id=%{id}<br>", r"")
+fig.data[0].hovertemplate = fig.data[0].hovertemplate.replace(
+    r"parent=%{parent}<br>", r""
+)
+fig.data[0].customdata[-1][0] = round(fig.data[0].customdata[-1][0], 2)
+val = float(fig.data[0].labels[-1])
+fig.data[0].labels[-1] = f"{int(val)}h {int((val-int(val))*60):02d}m"
 df_container_cols[1].plotly_chart(fig, key="Activities pie chart")
 
 ###############################################################################
@@ -328,7 +332,8 @@ pivot_table = df_grouped.pivot(index="hour", columns="activity", values="time").
     0
 )
 full_hours = pd.DataFrame({"hour": range(24)})  # Add missing hours (0 to 23)
-pivot_table = full_hours.merge(pivot_table, on="hour", how="left").fillna(0)
+pivot_table = full_hours.merge(pivot_table, on="hour", how="left")
+pivot_table = pivot_table.fillna(0)
 fig = px.bar(
     pivot_table,
     x="hour",
@@ -337,6 +342,7 @@ fig = px.bar(
     barmode="stack",
     color_discrete_map=colordict,
     opacity=0.6,
+    hover_data={"variable": True, "value": ":.2f"},
 )
 fig.update_layout(
     bargap=0.05,
