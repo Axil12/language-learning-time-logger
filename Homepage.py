@@ -206,7 +206,12 @@ stacked_bar_plots = stats_container.columns(3)
 for i, (tag, n_days) in enumerate(
     {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
+    stacked_bar_plots[i].markdown(f"#### {tag}")
+    
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
+    if len(df_tmp) == 0:
+        stacked_bar_plots[i].markdown(f"No data")
+        continue
     df_tmp["day"] = df_tmp["date"].dt.date
     day_first_entry = min(df_tmp["day"])
     all_days_in_range = pd.DataFrame(
@@ -242,7 +247,6 @@ for i, (tag, n_days) in enumerate(
         barcornerradius=4 - i,
     )
 
-    stacked_bar_plots[i].markdown(f"#### {tag}")
     stacked_bar_plots[i].plotly_chart(fig, key=f"Activity time hours {n_days}day")
 
 ### Cumulative time spent
