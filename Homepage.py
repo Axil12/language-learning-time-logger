@@ -159,7 +159,8 @@ df_container_cols[1].markdown(
     """
 )
 df_tmp = df.copy()
-df_tmp["total_time"] = df["time"].sum() / 60  # Conversion from minutes to hours
+df_tmp = df_tmp[df_tmp["tag"] != "special case"]
+df_tmp["total_time"] = df_tmp["time"].sum() / 60  # Conversion from minutes to hours
 df_tmp["time"] = df_tmp["time"] / 60  # Conversion from minutes to hours
 fig = px.sunburst(
     df_tmp,
@@ -207,7 +208,7 @@ for i, (tag, n_days) in enumerate(
     {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
     stacked_bar_plots[i].markdown(f"#### {tag}")
-    
+
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
     if len(df_tmp) == 0:
         stacked_bar_plots[i].markdown(f"No data")
@@ -258,6 +259,7 @@ for i, (tag, n_days) in enumerate(
     {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
+    df_tmp = df_tmp[df_tmp["tag"] != "special case"]
     df_tmp = build_df_for_cumul_stack_plot(df_tmp, n_days)
     df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
     df_tmp["time_str"] = (
