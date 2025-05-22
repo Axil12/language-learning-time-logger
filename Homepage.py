@@ -5,6 +5,7 @@ import streamlit as st
 from streamlit_theme import st_theme
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 from utils import (
     build_df_for_cumul_stack_plot,
@@ -202,36 +203,39 @@ stats_container = st.container()
 
 ### Time spent each day
 stats_container.markdown("### Activities")
-df_tmp = df.copy()
 stacked_bar_plots = stats_container.columns(3)
+df_tmp = df.copy()
+df_tmp["day"] = df_tmp["date"].dt.date
+day_first_entry = min(df_tmp["day"])
+all_days_in_range = pd.DataFrame(
+    {"day": [(today_dt - timedelta(days=i)).date() for i in range(365)]}
+)
+df_tmp = all_days_in_range.merge(df_tmp, on="day", how="left")
+df_tmp["activity"] = df_tmp["activity"].fillna("")
+df_tmp["time"] = df_tmp["time"].fillna(0)
+df_tmp = df_tmp[df_tmp["day"] >= day_first_entry]
+df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
+df_tmp["time_hours"] = df_tmp["time"] / 60
+df_tmp["time_str"] = (
+    (df_tmp["time"] // 60).astype(int).astype(str)
+    + "h"
+    + (df_tmp["time"] % 60).astype(int).map("{:02d}".format)
+)
+df_tmp = df_tmp.sort_values(by="activity")
+daily_time_amount = df_tmp.groupby(["day"])["time"].sum().reset_index()
+daily_time_amount["rolling_avg"] = daily_time_amount["time"].rolling(7).mean()
 for i, (tag, n_days) in enumerate(
     {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
     stacked_bar_plots[i].markdown(f"#### {tag}")
 
-    df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
-    if len(df_tmp) == 0:
+    df_to_plot = df_tmp[df_tmp["day"] > today_dt.date() - timedelta(days=n_days)].copy()
+    if len(df_to_plot) == 0:
         stacked_bar_plots[i].markdown(f"No data")
         continue
-    df_tmp["day"] = df_tmp["date"].dt.date
-    day_first_entry = min(df_tmp["day"])
-    all_days_in_range = pd.DataFrame(
-        {"day": [(today_dt - timedelta(days=i)).date() for i in range(n_days)]}
-    )
-    df_tmp = all_days_in_range.merge(df_tmp, on="day", how="left")
-    df_tmp["activity"] = df_tmp["activity"].fillna("")
-    df_tmp["time"] = df_tmp["time"].fillna(0)
-    df_tmp = df_tmp[df_tmp["day"] >= day_first_entry]
-    df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
-    df_tmp["time_hours"] = df_tmp["time"] / 60
-    df_tmp["time_str"] = (
-        (df_tmp["time"] // 60).astype(int).astype(str)
-        + "h"
-        + (df_tmp["time"] % 60).astype(int).map("{:02d}".format)
-    )
-    df_tmp = df_tmp.sort_values(by="activity")
+
     fig = px.bar(
-        df_tmp,
+        df_to_plot,
         x="day",
         y="time_hours",
         color="activity",
@@ -239,6 +243,17 @@ for i, (tag, n_days) in enumerate(
         opacity=0.6,
         labels={"activity": "Activity", "day": "Day", "time_str": "Time"},
         hover_data=dict(time_hours=False, time_str=True),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=daily_time_amount[-n_days:]["day"],
+            y=daily_time_amount[-n_days:]["rolling_avg"] / 60,
+            mode="lines",
+            name="7day rolling avg",
+            line=dict(color="gray", width=2),
+            hoverinfo="none",
+            opacity=0.4,
+        )
     )
     fig.update_layout(
         legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
@@ -252,8 +267,6 @@ for i, (tag, n_days) in enumerate(
 
 ### Cumulative time spent
 stats_container.markdown("### Cumulative time")
-df_tmp = df.copy()
-df_tmp["Cumulative time"] = df_tmp["time"].cumsum()
 cumul_stacked_plots = stats_container.columns(3)
 for i, (tag, n_days) in enumerate(
     {"This week": 6, "This month": 30, "This year": 365}.items()
