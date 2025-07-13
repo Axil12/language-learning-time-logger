@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Union
 
 import streamlit as st
 from streamlit_theme import st_theme
@@ -29,6 +30,8 @@ TAGS = [
     "active immersion",
     "passive immersion",
 ]
+
+DAILY_TIME_TARGET: Union[float, None] = None  # minutes
 
 colordict = {f: px.colors.qualitative.Prism[i] for i, f in enumerate(ACTIVITIES)}
 
@@ -188,9 +191,20 @@ df_container_cols[1].plotly_chart(fig, key="Activities pie chart")
 #
 ###############################################################################
 
-df_container.plotly_chart(
-    generate_calplot(df, dark_mode=theme.get("base") == "dark" if theme else None)
-)
+if DAILY_TIME_TARGET is not None:
+    calplot_fig = generate_calplot(
+        df,
+        dark_mode=theme.get("base") == "dark" if theme else None,
+        cmap_min=0,
+        cmap_max=200,
+        cmap_threshold=DAILY_TIME_TARGET,
+    )
+else:
+    calplot_fig = generate_calplot(
+        df, dark_mode=theme.get("base") == "dark" if theme else None
+    )
+
+df_container.plotly_chart(calplot_fig)
 
 ###############################################################################
 #
@@ -244,6 +258,18 @@ for i, (tag, n_days) in enumerate(
         labels={"activity": "Activity", "day": "Day", "time_str": "Time"},
         hover_data=dict(time_hours=False, time_str=True),
     )
+    if DAILY_TIME_TARGET is not None:
+        fig.add_shape(
+            type="line",
+            xref="paper",  # stretch full plot width (0–1 in paper coords)
+            x0=0,
+            x1=1,
+            y0=DAILY_TIME_TARGET / 60,
+            y1=DAILY_TIME_TARGET / 60,
+            line=dict(color="rgb(100, 100, 230)", width=2),  # , dash="dash"),
+            layer="below",  # draw behind the bars
+            # opacity=0.9,
+        )
     fig.add_trace(
         go.Scatter(
             x=daily_time_amount[-n_days:]["day"],
