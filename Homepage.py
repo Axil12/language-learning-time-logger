@@ -191,19 +191,13 @@ df_container_cols[1].plotly_chart(fig, key="Activities pie chart")
 #
 ###############################################################################
 
-if DAILY_TIME_TARGET is not None:
-    calplot_fig = generate_calplot(
-        df,
-        dark_mode=theme.get("base") == "dark" if theme else None,
-        cmap_min=0,
-        cmap_max=200,
-        cmap_threshold=DAILY_TIME_TARGET,
-    )
-else:
-    calplot_fig = generate_calplot(
-        df, dark_mode=theme.get("base") == "dark" if theme else None
-    )
-
+calplot_fig = generate_calplot(
+    df,
+    dark_mode=theme.get("base") == "dark" if theme else None,
+    cmap_min=0,
+    cmap_max=200,
+    cmap_threshold=DAILY_TIME_TARGET,
+)
 df_container.plotly_chart(calplot_fig)
 
 ###############################################################################
