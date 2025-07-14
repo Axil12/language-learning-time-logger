@@ -10,7 +10,7 @@ import numpy as np
 
 
 def threshold_color_scale(
-    threshold: float, min_val: float, max_val: float
+    threshold: float, min_val: float, max_val: float, soft_threshold: float = 0.0
 ) -> list[tuple[float, str]]:
     thresh = (threshold - min_val) / (max_val - min_val)
 
@@ -22,10 +22,28 @@ def threshold_color_scale(
         "rgb(247,104,161)",
         "rgb(221,52,151)",
     ]  # first part of px.colors.sequential.RdPu
-    cmap_2 = px.colors.sequential.Blugrn
+    cmap_2 = px.colors.sequential.Blugrn[1:]
 
-    cmap_1 = zip(list(np.linspace(start=0, stop=thresh, num=len(cmap_1))), cmap_1)
-    cmap_2 = zip(list(np.linspace(start=thresh, stop=1, num=len(cmap_2))), cmap_2)
+    if soft_threshold > 0:
+        cmap_1 = zip(
+            list(
+                np.linspace(
+                    start=0, stop=thresh * (1 - soft_threshold), num=len(cmap_1)
+                )
+            ),
+            cmap_1,
+        )
+        cmap_2 = zip(
+            list(
+                np.linspace(
+                    start=min(1, thresh * (1 + soft_threshold)), stop=1, num=len(cmap_2)
+                )
+            ),
+            cmap_2,
+        )
+    else:
+        cmap_1 = zip(list(np.linspace(start=0, stop=thresh, num=len(cmap_1))), cmap_1)
+        cmap_2 = zip(list(np.linspace(start=thresh, stop=1, num=len(cmap_2))), cmap_2)
 
     return list(cmap_1) + list(cmap_2)
 
@@ -98,7 +116,9 @@ def generate_calplot(
     if cmap_min is None:
         cmap_min = 0
     if cmap_min is not None and cmap_max is not None and cmap_threshold is not None:
-        colorscale = threshold_color_scale(cmap_threshold, cmap_min, cmap_max)
+        colorscale = threshold_color_scale(
+            cmap_threshold, cmap_min, cmap_max, soft_threshold=0
+        )
     else:
         colorscale = px.colors.sequential.RdPu
 
