@@ -145,59 +145,46 @@ def generate_calplot(
     return fig
 
 
-def fill_empty_with_zeros(
-    selected_year_data: pd.DataFrame,
-    x: str,
-    year: int,
-    start_month: int = 1,
-    end_month: int = 12,
-) -> pd.DataFrame:
-    """
-    Taken from https://github.com/brunorosilva/plotly-calplot/blob/main/plotly_calplot/utils.py
-
-    Fills empty dates with zeros in the selected year data.
-
+def group_days_for_plotting(df_source, n_days_group=7, period_days=365):
+    """Group daily activity data into N-day periods for plotting.
+    
     Args:
-        selected_year_data (DataFrame): The data for the selected year.
-        x (str): The column name for the date values.
-        year (int): The year for which the data is being filled.
-        start_month (int): The starting month of the year.
-        end_month (int): The ending month of the year.
+        df_source (pd.DataFrame): Original dataframe with columns 'day', 'activity', and 'time_hours'.
+        n_days_group (int): Number of days per group.
+        period_days (int): Number of days to include in the data before grouping.
 
     Returns:
-        pd.DataFrame: The final DataFrame with empty dates filled with zeros.
+        pd.DataFrame: Aggregated dataframe with columns 'start_date', 'activity', 'time_hours', and 'time_str'.
     """
-    if end_month != 12:
-        last_date = datetime(year, end_month + 1, 1) + timedelta(days=-1)
-    else:
-        last_date = datetime(year, 1, 1) + timedelta(days=-1)
-    year_min_date = date(year=year, month=start_month, day=1)
-    year_max_date = date(year=year, month=end_month, day=last_date.day)
-    df = pd.DataFrame({x: pd.date_range(year_min_date, year_max_date)})
-    final_df = df.merge(selected_year_data, how="left")
-    return final_df
+    # Ensure 'date' is datetime and create 'day' column
+    df_source = df_source.copy()
+    df_source["date"] = pd.to_datetime(df_source["date"], errors="coerce")
+    df_source["day"] = pd.to_datetime(df_source["date"].dt.date)
 
+    # Convert time to hours
+    df_source["time_hours"] = df_source["time"] / 60
 
-def get_date_coordinates(
-    data: pd.DataFrame, date_col_name: str
-) -> Tuple[Any, List[float], List[int]]:
-    """
-    Taken from https://github.com/brunorosilva/plotly-calplot/blob/main/plotly_calplot/date_extractors.py
-    """
-    month_days = []
-    for m in data[date_col_name].dt.month.unique():
-        month_days.append(
-            data.loc[data[date_col_name].dt.month == m, date_col_name].max().day
-        )
+    # Filter data for the last `period_days`
+    cutoff_date = pd.Timestamp.today().normalize() - timedelta(days=period_days)
+    df_to_plot = df_source[df_source["day"] > cutoff_date].copy()
 
-    month_positions = np.linspace(1.5, 50, 12)
-    weekdays_in_year = [i.weekday() for i in data[date_col_name]]
+    # Assign a group number for each N-day block
+    df_to_plot["day_num"] = (df_to_plot["day"] - df_to_plot["day"].min()).dt.days
+    df_to_plot["group"] = df_to_plot["day_num"].floordiv(n_days_group)
 
-    # sometimes the last week of the current year conflicts with next year's january
-    # pandas uses ISO weeks, which will give those weeks the number 52 or 53, but this
-    # is bad news for this plot therefore we need a correction to use Gregorian weeks,
-    # for a more in-depth explanation check
-    # https://stackoverflow.com/questions/44372048/python-pandas-timestamp-week-returns-52-for-first-day-of-year
-    weeknumber_of_dates = data[date_col_name].dt.strftime("%W").astype(int).tolist()
+    # Get the start date for each group (to use as x-axis labels)
+    group_start_dates = (
+        df_to_plot.groupby("group")["day"].min().reset_index().rename(columns={"day": "start_date"})
+    )
+    df_to_plot = df_to_plot.merge(group_start_dates, on="group", how="left")
 
-    return month_positions, weekdays_in_year, weeknumber_of_dates
+    # Aggregate time per activity per group
+    df_grouped = df_to_plot.groupby(["start_date", "activity"], as_index=False)["time_hours"].sum()
+    df_grouped["time_str"] = (
+        (df_grouped["time_hours"].astype(int)).astype(str)
+        + "h"
+        + ((df_grouped["time_hours"] % 1) * 60).astype(int).map("{:02d}".format)
+    )
+
+    return df_grouped
+
