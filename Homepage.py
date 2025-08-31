@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from utils import (
     build_df_for_cumul_stack_plot,
     generate_calplot,
+    group_days_for_plotting,
 )
 
 CSV_LOG_FILE = "time_logged.csv"
@@ -22,6 +23,7 @@ ACTIVITIES = [
     "twitch",
     "reading",
     "textbook study",
+    "video game",
 ]
 TAGS = [
     None,
@@ -175,6 +177,7 @@ fig = px.sunburst(
 )
 # ['date', 'activity', 'time', 'tag', 'comment', 'total_time']
 fig.update_layout(margin=dict(t=0, b=0, r=10, l=10), height=260)
+fig.update_traces(textinfo="label+percent parent")
 # Directly modifying the HTML to clean it because I haven't found any other way to do it
 fig.data[0].hovertemplate = fig.data[0].hovertemplate.replace(r"id=%{id}<br>", r"")
 fig.data[0].hovertemplate = fig.data[0].hovertemplate.replace(
@@ -219,51 +222,31 @@ all_days_in_range = pd.DataFrame(
     {"day": [(today_dt - timedelta(days=i)).date() for i in range(365)]}
 )
 df_tmp = all_days_in_range.merge(df_tmp, on="day", how="left")
-df_tmp["activity"] = df_tmp["activity"].fillna("")
-df_tmp["time"] = df_tmp["time"].fillna(0)
 df_tmp = df_tmp[df_tmp["day"] >= day_first_entry]
-df_tmp = df_tmp.groupby(["day", "activity"])["time"].sum().reset_index()
-df_tmp["time_hours"] = df_tmp["time"] / 60
-df_tmp["time_str"] = (
-    (df_tmp["time"] // 60).astype(int).astype(str)
-    + "h"
-    + (df_tmp["time"] % 60).astype(int).map("{:02d}".format)
-)
-df_tmp = df_tmp.sort_values(by="activity")
 daily_time_amount = df_tmp.groupby(["day"])["time"].sum().reset_index()
 daily_time_amount["rolling_avg"] = daily_time_amount["time"].rolling(7).mean()
-for i, (tag, n_days) in enumerate(
-    {"This week": 6, "This month": 30, "This year": 365}.items()
-):
-    stacked_bar_plots[i].markdown(f"#### {tag}")
 
-    df_to_plot = df_tmp[df_tmp["day"] > today_dt.date() - timedelta(days=n_days)].copy()
-    if len(df_to_plot) == 0:
-        stacked_bar_plots[i].markdown(f"No data")
-        continue
-
+periods_dict: dict = {
+    7: {"grouping": 1, "string": "This week"},
+    31: {"grouping": 1, "string": "This month"},
+    365: {"grouping": 4, "string": "This year"},
+}
+for i, (n_days, kwargs) in enumerate(periods_dict.items()):
+    df_to_plot = group_days_for_plotting(df.copy(), kwargs["grouping"], n_days)
     fig = px.bar(
         df_to_plot,
-        x="day",
+        x="start_date",
         y="time_hours",
         color="activity",
         color_discrete_map=colordict,
         opacity=0.6,
-        labels={"activity": "Activity", "day": "Day", "time_str": "Time"},
+        labels={
+            "activity": "Activity",
+            "start_date": "Start date" if kwargs["grouping"] > 1 else "Day",
+            "time_str": "Time"
+            },
         hover_data=dict(time_hours=False, time_str=True),
     )
-    if DAILY_TIME_TARGET is not None:
-        fig.add_shape(
-            type="line",
-            xref="paper",  # stretch full plot width (0–1 in paper coords)
-            x0=0,
-            x1=1,
-            y0=DAILY_TIME_TARGET / 60,
-            y1=DAILY_TIME_TARGET / 60,
-            line=dict(color="rgb(100, 100, 230)", width=2),  # , dash="dash"),
-            layer="below",  # draw behind the bars
-            # opacity=0.9,
-        )
     fig.add_trace(
         go.Scatter(
             x=daily_time_amount[-n_days:]["day"],
@@ -282,8 +265,7 @@ for i, (tag, n_days) in enumerate(
         bargap=0.01,
         barcornerradius=4 - i,
     )
-
-    stacked_bar_plots[i].plotly_chart(fig, key=f"Activity time hours {n_days}day")
+    stacked_bar_plots[i].plotly_chart(fig, key=f"Activity time hours {n_days}day 2")
 
 ### Cumulative time spent
 stats_container.markdown("### Cumulative time")
