@@ -102,6 +102,13 @@ df = df_source.copy()
 # Filters dropdown
 #
 ###############################################################################
+def clear_filters():
+    st.session_state.filtered_in_activities = []
+    st.session_state.filtered_in_tags = []
+    st.session_state.filtered_out_activities = []
+    st.session_state.filtered_out_tags = []
+    st.session_state.date_min = today_dt.date()
+    st.session_state.date_max = today_dt.date()
 
 with st.expander("Filters"):
     all_activities = set(ACTIVITIES + list(df["activity"].unique()))
@@ -109,20 +116,28 @@ with st.expander("Filters"):
     all_tags = set(TAGS + list(df["tag"].unique()))
     all_tags = [x for x in all_tags if x is not None]
     filters_container = st.container()
-    filtered_in_container_cols = filters_container.columns(2)
+    filtered_in_container_cols = filters_container.columns(3)
     filtered_in_container_cols[0].multiselect(
         "Filter in activities", all_activities, key="filtered_in_activities"
     )
     filtered_in_container_cols[1].multiselect(
         "Filter in tags", all_tags, key="filtered_in_tags"
     )
-    filtered_out_container_cols = filters_container.columns(2)
+    filtered_out_container_cols = filters_container.columns(3)
     filtered_out_container_cols[0].multiselect(
         "Filter out activities", all_activities, key="filtered_out_activities"
     )
     filtered_out_container_cols[1].multiselect(
         "Filter out tags", all_tags, key="filtered_out_tags"
     )
+
+    date_min = filtered_in_container_cols[2].date_input(label="Date min", key="date_min")
+    date_max = filtered_out_container_cols[2].date_input(label="Date max", key="date_max")
+    dt_min = datetime.combine(date_min, datetime.min.time())
+    dt_max = datetime.combine(date_max, datetime.min.time()) + timedelta(days=1)
+
+    if date_min != date_max and dt_max <= max(df["date"]):
+        df = df[(dt_min <= df["date"]) & (df["date"] <= dt_max)]
 
     df = df[
         df["activity"].isin(
@@ -132,6 +147,9 @@ with st.expander("Filters"):
     df = df[df["tag"].isin(st.session_state.get("filtered_in_tags") or all_tags)]
     df = df[~df["activity"].isin(st.session_state.get("filtered_out_activities", []))]
     df = df[~df["tag"].isin(st.session_state.get("filtered_out_tags", []))]
+
+    rerun_button = st.button(label="Reset filters", on_click=clear_filters)
+    
     if not len(df):  # If the dataframe is empty
         st.error("The dataframe is empty of logs !")
         st.stop()
