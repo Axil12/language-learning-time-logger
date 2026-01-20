@@ -48,10 +48,10 @@ def threshold_color_scale(
     return list(cmap_1) + list(cmap_2)
 
 
-def build_df_for_cumul_stack_plot(_df: pd.DataFrame, n_days: int) -> pd.DataFrame:
+def build_df_for_cumul_stack_plot(_df: pd.DataFrame, n_days: int, groupby_column: str="activity") -> pd.DataFrame:
     df = _df.copy()
     df["day"] = df["date"].dt.date
-    df = df.groupby(["day", "activity"])["time"].sum().reset_index()
+    df = df.groupby(["day", groupby_column])["time"].sum().reset_index()
     # all_days = pd.date_range(start=df["day"].min(), end=df["day"].max(), freq="D").date
     all_days = df["day"].unique()
     if len(all_days) > 0:
@@ -60,12 +60,12 @@ def build_df_for_cumul_stack_plot(_df: pd.DataFrame, n_days: int) -> pd.DataFram
         start = max(start, pd.to_datetime(df["day"]).min())
         end = today_dt
         all_days = pd.date_range(start=start, end=end, freq="D").date
-    all_activities = df["activity"].unique()
+    all_activities = df[groupby_column].unique()
     index = pd.MultiIndex.from_product(
-        [all_days, all_activities], names=["day", "activity"]
+        [all_days, all_activities], names=["day", groupby_column]
     )
-    df = df.set_index(["day", "activity"]).reindex(index, fill_value=0).reset_index()
-    df["Cumulative time"] = df.groupby(["activity"])["time"].cumsum()
+    df = df.set_index(["day", groupby_column]).reindex(index, fill_value=0).reset_index()
+    df["Cumulative time"] = df.groupby([groupby_column])["time"].cumsum()
     return df
 
 
@@ -145,7 +145,7 @@ def generate_calplot(
     return fig
 
 
-def group_days_for_plotting(df_source, n_days_group=7, period_days=365):
+def group_days_for_plotting(df_source, n_days_group=7, period_days=365, groupby_column="activity"):
     """Group daily activity data into N-day periods for plotting.
     
     Args:
@@ -178,8 +178,8 @@ def group_days_for_plotting(df_source, n_days_group=7, period_days=365):
     )
     df_to_plot = df_to_plot.merge(group_start_dates, on="group", how="left")
 
-    # Aggregate time per activity per group
-    df_grouped = df_to_plot.groupby(["start_date", "activity"], as_index=False)["time_hours"].sum()
+    # Aggregate time per groupby_column per group
+    df_grouped = df_to_plot.groupby(["start_date", groupby_column], as_index=False)["time_hours"].sum()
     df_grouped["time_str"] = (
         (df_grouped["time_hours"].astype(int)).astype(str)
         + "h"
