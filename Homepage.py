@@ -24,6 +24,7 @@ ACTIVITIES = [
     "reading",
     "textbook study",
     "video game",
+    "chatting",
 ]
 TAGS = [
     None,
@@ -31,11 +32,13 @@ TAGS = [
     "grammar",
     "active immersion",
     "passive immersion",
+    "background immersion",
 ]
 
 DAILY_TIME_TARGET: Union[float, None] = None  # minutes
 
-colordict = {f: px.colors.qualitative.Prism[i] for i, f in enumerate(ACTIVITIES)}
+
+colordict = {f: (px.colors.qualitative.Prism*3)[i] for i, f in enumerate(ACTIVITIES + TAGS)}
 
 # We get today's date at midnight. This will be usefull in multiple places in the page to compute time slices
 today_dt = datetime.combine(datetime.now().date(), datetime.min.time())
@@ -166,29 +169,42 @@ df_container_cols = df_container.columns([0.7, 0.3])
 # Displays dataframe
 df_container_cols[0].dataframe(df.sort_values(by="date", ascending=False), width=5000)
 
-# Pie chart that displays the distribution of activities
+# Time averages
 df_7days = df[df["date"] > today_dt - timedelta(days=6)].copy()
 df_30days = df[df["date"] > today_dt - timedelta(days=30)].copy()
 avg_7_days = sum(df_7days["time"]) / 7
 avg_30_days = sum(df_30days["time"]) / 30
 avg_all_time = sum(df["time"]) / ((today_dt - min(df["date"])).days + 1)
 
+# Time averages (without background immersion)
+df_tmp = df.copy()
+df_tmp = df_tmp[df_tmp["tag"] != "background immersion"]
+df_7days = df_tmp[df_tmp["date"] > today_dt - timedelta(days=6)].copy()
+df_30days = df_tmp[df_tmp["date"] > today_dt - timedelta(days=30)].copy()
+avg_7_days_without_bg = sum(df_7days["time"]) / 7
+avg_30_days_without_bg = sum(df_30days["time"]) / 30
+avg_all_time_without_bg = sum(df_tmp["time"]) / ((today_dt - min(df_tmp["date"])).days + 1)
 df_container_cols[1].markdown(
     f"""
-    Hours logged : **{sum(df["time"])/60:.2f} h**\n
+    Hours logged : **{sum(df["time"])/60:.2f}h**  (**{sum(df_tmp["time"])/60:.2f}h** without background immersion)\n
     ###### Average per day : \n
     This week : **{int(avg_7_days//60)}h{int(avg_7_days%60):02d}** | 
     This month : **{int(avg_30_days//60)}h{int(avg_30_days%60):02d}** | 
     All time : **{int(avg_all_time//60)}h{int(avg_all_time%60):02d}** 
+    ({int(avg_7_days_without_bg//60)}h{int(avg_7_days_without_bg%60):02d}, 
+    {int(avg_30_days_without_bg//60)}h{int(avg_30_days_without_bg%60):02d},  
+    {int(avg_all_time_without_bg//60)}h{int(avg_all_time_without_bg%60):02d} without BG)
     """
 )
+
+# Pie chart that displays the distribution of activities
 df_tmp = df.copy()
 df_tmp = df_tmp[df_tmp["tag"] != "special case"]
 df_tmp["total_time"] = df_tmp["time"].sum() / 60  # Conversion from minutes to hours
 df_tmp["time"] = df_tmp["time"] / 60  # Conversion from minutes to hours
 fig = px.sunburst(
     df_tmp,
-    path=["total_time", "activity", "tag"],
+    path=["total_time", "tag", "activity"] if st.session_state.get("arrange_stats_by_tag") else ["total_time", "activity", "tag"],
     values="time",
     labels={"time": "Time"},
     hover_data=dict(time=":.2f", activity=True, tag=True),
@@ -229,6 +245,8 @@ df_container.plotly_chart(calplot_fig)
 
 st.markdown("## Stats")
 stats_container = st.container()
+toggle_label: str = "Arrange by Activity / **Tag**" if st.session_state.get("arrange_stats_by_tag") else "Arrange by **Activity** / Tag"
+stats_container.toggle(toggle_label, key="arrange_stats_by_tag")
 
 ### Time spent each day
 stats_container.markdown("### Activities")
@@ -250,16 +268,17 @@ periods_dict: dict = {
     365: {"grouping": 4, "string": "This year"},
 }
 for i, (n_days, kwargs) in enumerate(periods_dict.items()):
-    df_to_plot = group_days_for_plotting(df.copy(), kwargs["grouping"], n_days)
+    groupby_column: str = "tag" if st.session_state.get("arrange_stats_by_tag") else "activity"
+    df_to_plot = group_days_for_plotting(df.copy(), kwargs["grouping"], n_days, groupby_column=groupby_column)
     fig = px.bar(
         df_to_plot,
         x="start_date",
         y="time_hours",
-        color="activity",
+        color=groupby_column,
         color_discrete_map=colordict,
         opacity=0.6,
         labels={
-            "activity": "Activity",
+            groupby_column: "Tag" if st.session_state.get("arrange_stats_by_tag") else "Activity",
             "start_date": "Start date" if kwargs["grouping"] > 1 else "Day",
             "time_str": "Time"
             },
@@ -291,24 +310,29 @@ cumul_stacked_plots = stats_container.columns(3)
 for i, (tag, n_days) in enumerate(
     {"This week": 6, "This month": 30, "This year": 365}.items()
 ):
+    groupby_column: str = "tag" if st.session_state.get("arrange_stats_by_tag") else "activity"
     df_tmp = df[df["date"] > today_dt - timedelta(days=n_days)].copy()
     df_tmp = df_tmp[df_tmp["tag"] != "special case"]
-    df_tmp = build_df_for_cumul_stack_plot(df_tmp, n_days)
+    df_tmp = build_df_for_cumul_stack_plot(df_tmp, n_days, groupby_column=groupby_column)
     df_tmp["Cumulative time hours"] = df_tmp["Cumulative time"] / 60
     df_tmp["time_str"] = (
         (df_tmp["Cumulative time"] // 60).astype(int).astype(str)
         + "h"
         + (df_tmp["Cumulative time"] % 60).astype(int).map("{:02d}".format)
     )
-    df_tmp = df_tmp.sort_values(by="activity")
+    df_tmp = df_tmp.sort_values(by=groupby_column)
     fig = px.area(
         df_tmp,
         x="day",
         y="Cumulative time hours",
-        color="activity",
+        color=groupby_column,
         line_shape="spline",
         color_discrete_map=colordict,
-        labels={"activity": "Activity", "day": "Day", "time_str": "Time"},
+        labels={
+            groupby_column: "Tag" if st.session_state.get("arrange_stats_by_tag") else "Activity",
+            "day": "Day",
+            "time_str": "Time"
+            },
         hover_data={"Cumulative time hours": False, "time_str": True},
     )
     fig.update_layout(
@@ -331,9 +355,10 @@ hist_cols[0].markdown("#### Activity counts")
 # First, we get rid of the data points that have a recorded hour at midnight. As those are considered to have an unknown time.
 df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
 df_tmp["hour"] = df_tmp["date"].dt.hour
-df_grouped = df_tmp.groupby(["hour", "activity"]).size().reset_index(name="count")
+groupby_column: str = "tag" if st.session_state.get("arrange_stats_by_tag") else "activity"
+df_grouped = df_tmp.groupby(["hour", groupby_column]).size().reset_index(name="count")
 # Pivot the data to have activity types as columns
-pivot_table = df_grouped.pivot(index="hour", columns="activity", values="count").fillna(
+pivot_table = df_grouped.pivot(index="hour", columns=groupby_column, values="count").fillna(
     0
 )
 full_hours = pd.DataFrame({"hour": range(24)})  # Add missing hours (0 to 23)
@@ -357,7 +382,7 @@ fig.update_layout(
         ticktext=[f"{i}:00" for i in range(24)],
         tickangle=40,
     ),
-    legend=dict(x=0, y=1, title="Activity"),
+    legend=dict(x=0, y=1, title="Tag" if st.session_state.get("arrange_stats_by_tag") else "Activity"),
 )
 hist_cols[0].plotly_chart(fig, key="histogram_activity_times")
 
@@ -366,8 +391,9 @@ hist_cols[1].markdown("#### Cumulated time")
 df_tmp = df[df["date"].dt.time != datetime(1970, 1, 1, 0, 0).time()].copy()
 df_tmp["hour"] = df_tmp["date"].dt.hour
 df_tmp["time"] = df_tmp["time"] / 60
-df_grouped = df_tmp.groupby(["hour", "activity"]).sum("time").reset_index()
-pivot_table = df_grouped.pivot(index="hour", columns="activity", values="time").fillna(
+groupby_column: str = "tag" if st.session_state.get("arrange_stats_by_tag") else "activity"
+df_grouped = df_tmp.groupby(["hour", groupby_column]).sum("time").reset_index()
+pivot_table = df_grouped.pivot(index="hour", columns=groupby_column, values="time").fillna(
     0
 )
 full_hours = pd.DataFrame({"hour": range(24)})  # Add missing hours (0 to 23)
@@ -393,7 +419,7 @@ fig.update_layout(
         ticktext=[f"{i}:00" for i in range(24)],
         tickangle=40,
     ),
-    legend=dict(x=0, y=1, title="Activity"),
+    legend=dict(x=0, y=1, title="Tag" if st.session_state.get("arrange_stats_by_tag") else "Activity"),
 )
 hist_cols[1].plotly_chart(fig, key="histogram_activity_times_2")
 
@@ -412,20 +438,23 @@ df_tmp["comment"] = df_tmp["comment"].fillna(" ")
 all_minutes = pd.DataFrame(
     {"minute_of_day": range(24 * 60)}
 )  # Add missing minute of the day
+groupby_column: str = "tag" if st.session_state.get("arrange_stats_by_tag") else "activity"
 fig = px.scatter(
     df_tmp,
     x="minute_of_day",
     y="time",
-    color="activity",
+    color=groupby_column,
     labels={"time": "Time", "hour_of_day": "Hour of the Day"},
     color_discrete_map=colordict,
     opacity=0.6,
-    hover_name="activity",
+    hover_name=groupby_column,
     hover_data=dict(
         activity=False, minute_of_day=False, time=True, hour_of_day=True, comment=True
     ),
 )
-fig.update_traces(marker_size=10)
+fig.update_traces(
+    marker_size=10 if len(df_tmp) <= 1000 else 7
+    )
 fig.update_layout(
     coloraxis_showscale=False,
     xaxis_range=[0, 24 * 60],
@@ -435,6 +464,6 @@ fig.update_layout(
         ticktext=[f"{i//60}:{i%60:02d}" for i in range(0, 24 * 60, 30)],
         tickangle=40,
     ),
-    legend=dict(x=0, y=1, title="Activity"),
+    legend=dict(x=0, y=1, title="Tag" if st.session_state.get("arrange_stats_by_tag") else "Activity"),
 )
 stats_container.plotly_chart(fig, key="tmp")
