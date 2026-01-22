@@ -246,7 +246,11 @@ df_container.plotly_chart(calplot_fig)
 st.markdown("## Stats")
 stats_container = st.container()
 toggle_label: str = "Arrange by Activity / **Tag**" if st.session_state.get("arrange_stats_by_tag") else "Arrange by **Activity** / Tag"
-stats_container.toggle(toggle_label, key="arrange_stats_by_tag")
+stats_container.toggle(
+    label=toggle_label,
+    key="arrange_stats_by_tag",
+    value=bool(st.session_state.get("arrange_stats_by_tag"))
+    )
 
 ### Time spent each day
 stats_container.markdown("### Activities")
